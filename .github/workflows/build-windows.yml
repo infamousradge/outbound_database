@@ -20,6 +20,9 @@ jobs:
       - name: Flutter pub get
         run: flutter pub get
 
+      - name: Run quick static analysis (smoke)
+        run: flutter analyze --no-fatal-infos || flutter analyze
+
       - name: Enable Windows desktop
         run: flutter config --enable-windows-desktop
 
