@@ -23,6 +23,9 @@ jobs:
       - name: Enable Windows desktop
         run: flutter config --enable-windows-desktop
 
+      - name: Create Windows platform (if missing)
+        run: flutter create --platforms=windows .
+
       - name: Build Windows release
         run: flutter build windows --release
 
@@ -34,8 +37,24 @@ jobs:
           Compress-Archive -Path build\windows\runner\Release\* -DestinationPath $out
           Write-Host "Created $out"
 
-      - name: Upload artifact
+      - name: Install NSIS (Chocolatey)
+        shell: pwsh
+        run: |
+          choco install nsis -y
+
+      - name: Build NSIS installer
+        shell: pwsh
+        run: |
+          $nsis = "${env:ProgramFiles(x86)}\\NSIS\\makensis.exe"
+          if (-not (Test-Path $nsis)) { Write-Host "makensis not found at $nsis"; exit 1 }
+          & $nsis -V2 installer.nsi
+          if (-not (Test-Path .\\outbound_database_installer.exe)) { Write-Host "Installer not created"; exit 1 }
+          Write-Host "Created installer outbound_database_installer.exe"
+
+      - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
           name: outbound_database-windows
-          path: outbound_database_windows.zip
+          path: |
+            outbound_database_windows.zip
+            outbound_database_installer.exe

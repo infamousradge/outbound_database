@@ -19,7 +19,7 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Outbound Database',
-      theme: ThemeData(useMaterial3: true),
+      theme: ThemeData(useMaterial3: true, colorScheme: ColorScheme.fromSeed(seedColor: Colors.indigo)),
       home: const HomePage(),
     );
   }
@@ -56,6 +56,10 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
   Future<void> _loadItems() async {
     final rows = await DatabaseHelper().allItems(status: _filterStatus, category: _filterCategory);
     setState(() => _items = rows);
+  }
+
+  int _countByStatus(String status) {
+    return _items.where((r) => (r['dispatch_status'] ?? '') == status).length;
   }
 
   Future<void> _loadClients() async {
@@ -217,6 +221,14 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
             const SizedBox(width: 8),
             DropdownButton<String?>(value: _filterCategory, items: categories.map((c) => DropdownMenuItem(value: c, child: Text(c ?? 'All'))).toList(), onChanged: (v) { setState(() => _filterCategory = v); _loadItems(); }),
             const Spacer(),
+            Row(children: [
+              Column(children: [Text('DC', style: TextStyle(fontWeight: FontWeight.bold)), Text('${_countByStatus('DC')}')]),
+              const SizedBox(width: 12),
+              Column(children: [Text('Billed', style: TextStyle(fontWeight: FontWeight.bold)), Text('${_countByStatus('Billed')}')]),
+              const SizedBox(width: 12),
+              Column(children: [Text('Pending', style: TextStyle(fontWeight: FontWeight.bold)), Text('${_countByStatus('Pending')}')]),
+            ]),
+            const SizedBox(width: 12),
             ElevatedButton.icon(onPressed: _loadItems, icon: const Icon(Icons.refresh), label: const Text('Refresh')),
             const SizedBox(width: 8),
             ElevatedButton.icon(onPressed: _exportCsv, icon: const Icon(Icons.file_download), label: const Text('Export CSV')),
@@ -349,9 +361,23 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
     return Scaffold(
       appBar: AppBar(
         title: const Text('Outbound Database'),
+        actions: [
+          IconButton(onPressed: _showAbout, icon: const Icon(Icons.info_outline)),
+        ],
         bottom: TabBar(controller: _tabController, tabs: const [Tab(text: 'Import'), Tab(text: 'Items'), Tab(text: 'Clients')]),
       ),
       body: TabBarView(controller: _tabController, children: [_importTab(), _itemsTab(), _clientsTab()]),
+    );
+  }
+
+  void _showAbout() async {
+    final dbPath = '';
+    showAboutDialog(
+      context: context,
+      applicationName: 'Outbound Database',
+      applicationVersion: '0.1.0',
+      applicationLegalese: 'MIT License',
+      children: [Text('Database path (on Windows): %APPDATA%\\OutboundDatabase\\outbound_database.db')],
     );
   }
 }
