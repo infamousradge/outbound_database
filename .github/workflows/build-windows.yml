@@ -29,8 +29,18 @@ jobs:
       - name: Create Windows platform (if missing)
         run: flutter create --platforms=windows .
 
-      - name: Build Windows release
-        run: flutter build windows --release
+      - name: Build Windows release (capture log)
+        shell: pwsh
+        run: |
+          $log = 'build_windows_log.txt'
+          if (Test-Path $log) { Remove-Item $log }
+          Write-Host "Starting flutter build (logs -> $log)"
+          flutter build windows --release 2>&1 | Tee-Object -FilePath $log
+          if (-not (Test-Path 'build\\windows\\runner\\Release')) {
+            Write-Host "Build output not found at build\\windows\\runner\\Release"
+            Write-Host "Tail of build log:"; Get-Content $log -Tail 200 | ForEach-Object { Write-Host $_ }
+            exit 1
+          }
 
       - name: Zip release (if build exists)
         shell: pwsh
@@ -61,10 +71,12 @@ jobs:
           if (-not (Test-Path .\\outbound_database_installer.exe)) { Write-Host "Installer not created"; exit 1 }
           Write-Host "Created installer outbound_database_installer.exe"
 
-      - name: Upload artifacts
+      - name: Upload artifacts (always)
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: outbound_database-windows
           path: |
             outbound_database_windows.zip
             outbound_database_installer.exe
+            build_windows_log.txt
