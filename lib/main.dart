@@ -1,7 +1,7 @@
 import 'dart:typed_data';
 import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:file_picker/file_picker.dart';
+import 'package:file_selector/file_selector.dart';
 import 'package:path/path.dart' as p;
 import 'parser.dart';
 import 'db.dart';
@@ -68,18 +68,13 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
   }
 
   Future<void> _pickDocx() async {
-    final result = await FilePicker.platform.pickFiles(type: FileType.custom, allowedExtensions: ['docx']);
-    if (result == null) return;
+    final typeGroup = XTypeGroup(label: 'docx', extensions: ['docx']);
+    final file = await openFile(acceptedTypeGroups: [typeGroup]);
+    if (file == null) return;
     setState(() => _loading = true);
     try {
-      final bytes = result.files.first.bytes;
-      Uint8List data;
-      if (bytes == null) {
-        final path = result.files.first.path!;
-        data = await File(path).readAsBytes();
-      } else {
-        data = bytes;
-      }
+      final path = file.path;
+      final data = await File(path).readAsBytes();
       final recs = parseDocxBytes(data);
       setState(() => _records = recs);
     } catch (e) {
@@ -323,9 +318,10 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
   }
 
   Future<void> _importCsv() async {
-    final result = await FilePicker.platform.pickFiles(type: FileType.custom, allowedExtensions: ['csv']);
-    if (result == null) return;
-    final path = result.files.first.path!;
+    final typeGroup = XTypeGroup(label: 'csv', extensions: ['csv']);
+    final file = await openFile(acceptedTypeGroups: [typeGroup]);
+    if (file == null) return;
+    final path = file.path;
     setState(() => _loading = true);
     try {
       await DatabaseHelper().importItemsFromCsv(path);
@@ -340,9 +336,10 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
   }
 
   Future<void> _importJson() async {
-    final result = await FilePicker.platform.pickFiles(type: FileType.custom, allowedExtensions: ['json']);
-    if (result == null) return;
-    final path = result.files.first.path!;
+    final typeGroup = XTypeGroup(label: 'json', extensions: ['json']);
+    final file = await openFile(acceptedTypeGroups: [typeGroup]);
+    if (file == null) return;
+    final path = file.path;
     setState(() => _loading = true);
     try {
       await DatabaseHelper().importItemsFromJson(path);
