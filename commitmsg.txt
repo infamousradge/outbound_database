@@ -1,0 +1,3 @@
+﻿feat: outbound database initial commit (parser, DB, UI, CI workflow, exports/imports, license)
+
+Co-authored-by: Copilot App <223556219+Copilot@users.noreply.github.com>

@@ -1,0 +1,41 @@
+name: Build Windows Release
+
+on:
+  push:
+    branches: [ main, 'release/**' ]
+  workflow_dispatch: {}
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+
+      - name: Flutter pub get
+        run: flutter pub get
+
+      - name: Enable Windows desktop
+        run: flutter config --enable-windows-desktop
+
+      - name: Build Windows release
+        run: flutter build windows --release
+
+      - name: Zip release
+        shell: pwsh
+        run: |
+          $out = 'outbound_database_windows.zip'
+          if (Test-Path $out) { Remove-Item $out }
+          Compress-Archive -Path build\windows\runner\Release\* -DestinationPath $out
+          Write-Host "Created $out"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: outbound_database-windows
+          path: outbound_database_windows.zip
