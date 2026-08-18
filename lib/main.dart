@@ -371,7 +371,6 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
   }
 
   void _showAbout() async {
-    final dbPath = '';
     showAboutDialog(
       context: context,
       applicationName: 'Outbound Database',

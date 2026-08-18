@@ -60,7 +60,7 @@ String _extractTextFromDocx(Uint8List bytes) {
   // tables
   for (final tbl in xml.findAllElements('w:tbl')) {
     for (final row in tbl.findAllElements('w:tr')) {
-      final cells = row.findAllElements('w:tc').map((c) => c.findAllElements('w:t').map((n) => n.text).join()).where((t) => t.trim().isNotEmpty).toList();
+    final cells = row.findAllElements('w:tc').map((c) => c.findAllElements('w:t').map((n) => n.value).join()).where((t) => t.trim().isNotEmpty).toList();
       if (cells.isNotEmpty) buffer.writeln(cells.join(' | '));
     }
   }
