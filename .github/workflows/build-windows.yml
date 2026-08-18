@@ -32,12 +32,19 @@ jobs:
       - name: Build Windows release
         run: flutter build windows --release
 
-      - name: Zip release
+      - name: Zip release (if build exists)
         shell: pwsh
         run: |
           $out = 'outbound_database_windows.zip'
+          $buildPath = 'build\windows\runner\Release'
+          if (-not (Test-Path $buildPath)) {
+            Write-Host "Build output not found at $buildPath"
+            Write-Host "Listing build/ directory for debugging:"
+            Get-ChildItem -Recurse -Force build | ForEach-Object { Write-Host $_.FullName }
+            exit 1
+          }
           if (Test-Path $out) { Remove-Item $out }
-          Compress-Archive -Path build\windows\runner\Release\* -DestinationPath $out
+          Compress-Archive -Path (Join-Path $buildPath '*') -DestinationPath $out
           Write-Host "Created $out"
 
       - name: Install NSIS (Chocolatey)
