@@ -128,7 +128,7 @@ class DatabaseHelper {
         final existingId = existing['item_id'] as int;
         // If incoming is Billed and existing is not, update status to Billed (sold)
         if (item.status == 'Billed' && existingStatus != 'Billed') {
-          await _db.update('dispatch_items', {'dispatch_status': 'Billed', 'notes': (existing['notes'] ?? '') + '\nUpdated: billed'}, where: 'item_id = ?', whereArgs: [existingId]);
+        await _db.update('dispatch_items', {'dispatch_status': 'Billed', 'notes': (existing['notes'] ?? '').toString() + '\nUpdated: billed'}, where: 'item_id = ?', whereArgs: [existingId]);
           return existingId;
         }
         // Otherwise skip to avoid duplicate
