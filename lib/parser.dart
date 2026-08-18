@@ -52,9 +52,10 @@ String _extractTextFromDocx(Uint8List bytes) {
   final buffer = StringBuffer();
 
   for (final p in xml.findAllElements('w:p')) {
-    final texts = p.findAllElements('w:t').map((n) => n.text).join();
+  final texts = p.findAllElements('w:t').map((n) => n.value).join();
     if (texts.trim().isNotEmpty) buffer.writeln(texts.trim());
   }
+
 
   // tables
   for (final tbl in xml.findAllElements('w:tbl')) {
