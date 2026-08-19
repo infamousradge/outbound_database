@@ -241,11 +241,17 @@ class DatabaseHelper {
   }
 
   Future<List<Map<String, dynamic>>> dashboard() async {
-    final clients = Sqflite.firstIntValue(await _db.rawQuery('SELECT COUNT(*) FROM clients')) ?? 0;
-    final transactions = Sqflite.firstIntValue(await _db.rawQuery('SELECT COUNT(*) FROM transactions')) ?? 0;
-    final sales = Sqflite.firstIntValue(await _db.rawQuery("SELECT COUNT(*) FROM transactions WHERE transaction_type='Sale / Billing'")) ?? 0;
-    final equipment = Sqflite.firstIntValue(await _db.rawQuery('SELECT COUNT(*) FROM equipment_master')) ?? 0;
-    final priced = Sqflite.firstIntValue(await _db.rawQuery('SELECT COUNT(*) FROM equipment_events WHERE net_price IS NOT NULL')) ?? 0;
+    Future<int> count(String sql) async {
+      final rows = await _db.rawQuery(sql);
+      if (rows.isEmpty) return 0;
+      final value = rows.first.values.first;
+      return value is int ? value : int.tryParse('$value') ?? 0;
+    }
+    final clients = await count('SELECT COUNT(*) FROM clients');
+    final transactions = await count('SELECT COUNT(*) FROM transactions');
+    final sales = await count("SELECT COUNT(*) FROM transactions WHERE transaction_type='Sale / Billing'");
+    final equipment = await count('SELECT COUNT(*) FROM equipment_master');
+    final priced = await count('SELECT COUNT(*) FROM equipment_events WHERE net_price IS NOT NULL');
     return [{'clients': clients, 'transactions': transactions, 'sales': sales, 'equipment': equipment, 'priced_events': priced}];
   }
 

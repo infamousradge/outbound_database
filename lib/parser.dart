@@ -154,7 +154,7 @@ String _canonicalCategory(String product, String notes) {
   final s = '$product $notes'.toLowerCase();
   if (RegExp(r'calibration|calibrat|service|repair|checking|checkup|after service|repair charges|certificate').hasMatch(s)) return 'Calibration & Service';
   if (RegExp(r'probe|tip|cable|adapter|charger|battery|headphone|earphone|electrode|electrodes|speaker|pre[- ]?amp|power cord|power adapter|tube|foam|insert|printer|paper|gel|accessor|spare').hasMatch(s)) return 'Spares & Accessories';
-  if (RegExp(r'quantity|no[’\']?s|pack|rolls|filters|gel|brochures|paper').hasMatch(s) && !RegExp(r'audiometer|oae|tymp|abr|titan|mi\d|ad\d|teny|duet|menor|sera|usb').hasMatch(s)) return 'Consumables';
+  if (RegExp(r"quantity|no[’']?s|pack|rolls|filters|gel|brochures|paper").hasMatch(s) && !RegExp(r"audiometer|oae|tymp|abr|titan|mi\d|ad\d|teny|duet|menor|sera|usb").hasMatch(s)) return 'Consumables';
   if (RegExp(r'audiometer|oae|eroscan|easyscreen|easy tymp|easytymp|tymp|ad\d+|abr|duet|sera|titan|mi\d|mb\d|teny|menor|maico|inventis|labat|i hs|ihs|ecochg|amplifier|system').hasMatch(s)) return 'Main Equipment';
   return 'Other';
 }

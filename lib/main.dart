@@ -206,17 +206,45 @@ class _Kpi extends StatelessWidget {
   final String label;
   final String value;
   final IconData icon;
-  const _Kpi({required this.label, required this.value, required this.icon});
+
+  const _Kpi({
+    required this.label,
+    required this.value,
+    required this.icon,
+  });
+
   @override
-  Widget build(BuildContext context) => SizedBox(
-        width: 210,
-        child: Card(
-          child: Padding(
-            padding: const EdgeInsets.all(18),
-            child: Row(children: [Icon(icon, size: 30), const SizedBox(width: 14), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(value, style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800)), Text(label, style: Theme.of(context).textTheme.bodySmall)])])
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 210,
+      child: Card(
+        child: Padding(
+          padding: const EdgeInsets.all(18),
+          child: Row(
+            children: [
+              Icon(icon, size: 30),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      value,
+                      style: Theme.of(context)
+                          .textTheme
+                          .headlineSmall
+                          ?.copyWith(fontWeight: FontWeight.w800),
+                    ),
+                    Text(label, style: Theme.of(context).textTheme.bodySmall),
+                  ],
+                ),
+              ),
+            ],
           ),
         ),
-      );
+      ),
+    );
+  }
 }
 
 class ImportPage extends StatefulWidget {
@@ -378,7 +406,20 @@ class _ClientsPageState extends State<ClientsPage> {
   Widget build(BuildContext context) => _PageScaffold(
         title: 'Client Master',
         subtitle: 'Deduplicated client records with billing/delivery addresses, GSTIN and contact details.',
-        actions: [SizedBox(width: 280, child: TextField(controller: _search, decoration: const InputDecoration(prefixIcon: Icon(Icons.search), hintText: 'Search client, GSTIN, address', border: OutlineInputBorder()), onChanged: (_) => setState(() {}))],
+        actions: [
+          SizedBox(
+            width: 280,
+            child: TextField(
+              controller: _search,
+              decoration: const InputDecoration(
+                prefixIcon: Icon(Icons.search),
+                hintText: 'Search client, GSTIN, address',
+                border: OutlineInputBorder(),
+              ),
+              onChanged: (_) => setState(() {}),
+            ),
+          ),
+        ],
         child: FutureBuilder<List<Map<String, dynamic>>>(future: DatabaseHelper().clients(query: _search.text), builder: (_, snap) {
           if (!snap.hasData) return const Center(child: CircularProgressIndicator());
           return ListView.builder(padding: const EdgeInsets.all(24), itemCount: snap.data!.length, itemBuilder: (_, i) {
@@ -394,10 +435,55 @@ class _PageScaffold extends StatelessWidget {
   final String subtitle;
   final List<Widget> actions;
   final Widget child;
-  const _PageScaffold({required this.title, required this.subtitle, required this.actions, required this.child});
+
+  const _PageScaffold({
+    required this.title,
+    required this.subtitle,
+    required this.actions,
+    required this.child,
+  });
+
   @override
-  Widget build(BuildContext context) => Column(children: [
-    Container(padding: const EdgeInsets.fromLTRB(24, 22, 24, 16), decoration: BoxDecoration(border: Border(bottom: BorderSide(color: Theme.of(context).dividerColor))), child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(title, style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800)), const SizedBox(height: 4), Text(subtitle)])), ...actions]),
-    Expanded(child: child),
-  ]);
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Container(
+          padding: const EdgeInsets.fromLTRB(24, 22, 24, 16),
+          decoration: BoxDecoration(
+            border: Border(
+              bottom: BorderSide(
+                color: Theme.of(context).dividerColor,
+              ),
+            ),
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: Theme.of(context)
+                          .textTheme
+                          .headlineSmall
+                          ?.copyWith(fontWeight: FontWeight.w800),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(subtitle),
+                  ],
+                ),
+              ),
+              if (actions.isNotEmpty) ...[
+                const SizedBox(width: 16),
+                ...actions,
+              ],
+            ],
+          ),
+        ),
+        Expanded(child: child),
+      ],
+    );
+  }
 }
