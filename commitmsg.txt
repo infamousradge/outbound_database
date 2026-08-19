@@ -1,3 +1,10 @@
-﻿feat: outbound database initial commit (parser, DB, UI, CI workflow, exports/imports, license)
+Rebuild importer around historical outbound document structure
 
-Co-authored-by: Copilot App <223556219+Copilot@users.noreply.github.com>
+- Recognize Product/Device/Item/Transducer variants
+- Batch import multiple DOCX files
+- Separate sales, DC, demo, service and return transactions
+- Build client and equipment masters
+- Track yearly price history
+- Prevent duplicate transaction re-imports
+- Replace misleading Unknown Product flow with structured extraction
+- Fix Windows CI and NSIS packaging
