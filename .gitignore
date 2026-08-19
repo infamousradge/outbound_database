@@ -35,3 +35,12 @@ logs/
 
 # Misc
 outbound_database_windows.zip
+# Generated Windows/CI build files
+build/
+.dart_tool/
+installer_payload/
+dist/
+build_windows_log.txt
+build_manifest.txt
+OutboundDatabase-Setup.exe
+OutboundDatabase-Windows-Portable.zip
