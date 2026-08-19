@@ -2,81 +2,595 @@ name: Build Windows Release
 
 on:
   push:
-    branches: [ main, 'release/**' ]
-  workflow_dispatch: {}
+    branches:
+      - main
+      - "release/**"
+    tags:
+      - "v*"
+
+  pull_request:
+
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: windows-release-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build-windows:
+    name: Build Windows EXE + Installer
     runs-on: windows-latest
+    timeout-minutes: 60
+
     steps:
-      - name: Checkout
+
+      # ------------------------------------------------------------
+      # 1. CHECKOUT
+      # ------------------------------------------------------------
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up Flutter
+
+      # ------------------------------------------------------------
+      # 2. FLUTTER
+      # ------------------------------------------------------------
+      - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
           channel: stable
+          cache: true
 
-      - name: Flutter pub get
-        run: flutter pub get
 
-      - name: Run quick static analysis (smoke)
-        run: flutter analyze --no-fatal-infos || flutter analyze
+      # ------------------------------------------------------------
+      # 3. VERIFY ENVIRONMENT
+      # ------------------------------------------------------------
+      - name: Verify Flutter environment
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
 
+          Write-Host "========================================"
+          Write-Host "Flutter version"
+          Write-Host "========================================"
+
+          flutter --version
+
+          Write-Host ""
+          Write-Host "========================================"
+          Write-Host "Dart version"
+          Write-Host "========================================"
+
+          dart --version
+
+          Write-Host ""
+          Write-Host "========================================"
+          Write-Host "Flutter doctor"
+          Write-Host "========================================"
+
+          flutter doctor -v
+
+
+      # ------------------------------------------------------------
+      # 4. ENABLE WINDOWS
+      # ------------------------------------------------------------
       - name: Enable Windows desktop
-        run: flutter config --enable-windows-desktop
-
-      - name: Create Windows platform (if missing)
-        run: flutter create --platforms=windows .
-
-      - name: Build Windows release (capture log)
         shell: pwsh
         run: |
-          $log = 'build_windows_log.txt'
-          if (Test-Path $log) { Remove-Item $log }
-          Write-Host "Starting flutter build (logs -> $log)"
-          flutter build windows --release 2>&1 | Tee-Object -FilePath $log
-          if (-not (Test-Path 'build\\windows\\runner\\Release')) {
-            Write-Host "Build output not found at build\\windows\\runner\\Release"
-            Write-Host "Tail of build log:"; Get-Content $log -Tail 200 | ForEach-Object { Write-Host $_ }
-            exit 1
+          $ErrorActionPreference = "Stop"
+
+          flutter config --enable-windows-desktop
+
+          if ($LASTEXITCODE -ne 0) {
+            throw "Unable to enable Windows desktop."
           }
 
-      - name: Zip release (if build exists)
+
+      # ------------------------------------------------------------
+      # 5. CREATE WINDOWS PLATFORM FILES
+      # ------------------------------------------------------------
+      - name: Generate Windows platform
         shell: pwsh
         run: |
-          $out = 'outbound_database_windows.zip'
-          $buildPath = 'build\windows\runner\Release'
-          if (-not (Test-Path $buildPath)) {
-            Write-Host "Build output not found at $buildPath"
-            Write-Host "Listing build/ directory for debugging:"
-            Get-ChildItem -Recurse -Force build | ForEach-Object { Write-Host $_.FullName }
-            exit 1
+          $ErrorActionPreference = "Stop"
+
+          Write-Host "Checking Windows platform..."
+
+          if (-not (Test-Path "windows\CMakeLists.txt")) {
+
+            Write-Host "Windows platform does not exist."
+            Write-Host "Generating Windows platform..."
+
+            flutter create `
+              --platforms=windows `
+              --project-name=outbound_database `
+              --no-pub `
+              .
+
+            if ($LASTEXITCODE -ne 0) {
+              throw "flutter create failed."
+            }
+
+          } else {
+
+            Write-Host "Windows platform already exists."
+
           }
-          if (Test-Path $out) { Remove-Item $out }
-          Compress-Archive -Path (Join-Path $buildPath '*') -DestinationPath $out
-          Write-Host "Created $out"
 
-      - name: Install NSIS (Chocolatey)
+          if (-not (Test-Path "windows\CMakeLists.txt")) {
+            throw "ERROR: windows\CMakeLists.txt was not created."
+          }
+
+          if (-not (Test-Path "windows\runner")) {
+            throw "ERROR: windows\runner was not created."
+          }
+
+          Write-Host ""
+          Write-Host "Windows platform is ready."
+
+
+      # ------------------------------------------------------------
+      # 6. GET PACKAGES
+      # ------------------------------------------------------------
+      - name: Flutter pub get
         shell: pwsh
         run: |
-          choco install nsis -y
+          $ErrorActionPreference = "Stop"
 
+          flutter pub get
+
+          if ($LASTEXITCODE -ne 0) {
+            throw "flutter pub get failed."
+          }
+
+
+      # ------------------------------------------------------------
+      # 7. CHECK DEPENDENCIES
+      # ------------------------------------------------------------
+      - name: Check dependencies
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+
+          flutter pub deps
+
+          if ($LASTEXITCODE -ne 0) {
+            throw "flutter pub deps failed."
+          }
+
+
+      # ------------------------------------------------------------
+      # 8. ANALYZE
+      # ------------------------------------------------------------
+      - name: Analyze Dart code
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+
+          flutter analyze
+
+          if ($LASTEXITCODE -ne 0) {
+            throw "flutter analyze failed."
+          }
+
+
+      # ------------------------------------------------------------
+      # 9. CLEAN OLD BUILD
+      # ------------------------------------------------------------
+      - name: Clean Flutter build
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+
+          flutter clean
+
+          if ($LASTEXITCODE -ne 0) {
+            throw "flutter clean failed."
+          }
+
+          flutter pub get
+
+          if ($LASTEXITCODE -ne 0) {
+            throw "flutter pub get after clean failed."
+          }
+
+
+      # ------------------------------------------------------------
+      # 10. BUILD WINDOWS
+      #
+      # IMPORTANT:
+      # Current Flutter output is:
+      #
+      # build/windows/x64/runner/Release
+      #
+      # NOT:
+      #
+      # build/windows/runner/Release
+      # ------------------------------------------------------------
+      - name: Build Windows application
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+
+          New-Item -ItemType Directory -Force -Path "build" | Out-Null
+
+          $log = Join-Path $PWD "build_windows_log.txt"
+
+          Write-Host ""
+          Write-Host "========================================"
+          Write-Host "BUILDING WINDOWS APPLICATION"
+          Write-Host "========================================"
+          Write-Host ""
+
+          flutter build windows --release --verbose 2>&1 |
+            Tee-Object -FilePath $log
+
+          $exitCode = $LASTEXITCODE
+
+          Write-Host ""
+          Write-Host "Flutter build exit code: $exitCode"
+
+          if ($exitCode -ne 0) {
+
+            Write-Host ""
+            Write-Host "========================================"
+            Write-Host "WINDOWS BUILD FAILED"
+            Write-Host "========================================"
+
+            if (Test-Path $log) {
+              Write-Host ""
+              Write-Host "Last 200 lines of build log:"
+              Get-Content $log -Tail 200
+            }
+
+            exit $exitCode
+          }
+
+          Write-Host ""
+          Write-Host "========================================"
+          Write-Host "FLUTTER BUILD COMMAND SUCCEEDED"
+          Write-Host "========================================"
+
+
+      # ------------------------------------------------------------
+      # 11. VERIFY THE EXACT OUTPUT PRODUCED BY FLUTTER
+      # ------------------------------------------------------------
+      - name: Verify Windows executable
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+
+          $releaseDir = "build\windows\x64\runner\Release"
+          $exe = "$releaseDir\outbound_database.exe"
+
+          Write-Host ""
+          Write-Host "========================================"
+          Write-Host "CHECKING WINDOWS BUILD OUTPUT"
+          Write-Host "========================================"
+
+          Write-Host "Expected release directory:"
+          Write-Host $releaseDir
+
+          Write-Host ""
+          Write-Host "Expected executable:"
+          Write-Host $exe
+
+          if (-not (Test-Path $releaseDir)) {
+
+            Write-Host ""
+            Write-Host "Release directory was not found."
+            Write-Host ""
+            Write-Host "Contents of build/windows:"
+            
+            if (Test-Path "build\windows") {
+              Get-ChildItem `
+                -Path "build\windows" `
+                -Recurse `
+                -Force |
+                Select-Object FullName, Length |
+                Format-Table -AutoSize
+            }
+
+            throw "Windows release directory was not found."
+          }
+
+          if (-not (Test-Path $exe)) {
+
+            Write-Host ""
+            Write-Host "Executable was not found."
+            Write-Host ""
+            Write-Host "Release directory contents:"
+
+            Get-ChildItem `
+              -Path $releaseDir `
+              -Recurse `
+              -Force |
+              Select-Object FullName, Length |
+              Format-Table -AutoSize
+
+            throw "outbound_database.exe was not found."
+          }
+
+          $file = Get-Item $exe
+
+          Write-Host ""
+          Write-Host "========================================"
+          Write-Host "WINDOWS BUILD SUCCESSFUL"
+          Write-Host "========================================"
+          Write-Host ""
+          Write-Host "EXE:"
+          Write-Host $file.FullName
+          Write-Host ""
+          Write-Host "SIZE:"
+          Write-Host "$([math]::Round($file.Length / 1MB, 2)) MB"
+          Write-Host ""
+
+          "RELEASE_DIR=$releaseDir" >> $env:GITHUB_ENV
+
+
+      # ------------------------------------------------------------
+      # 12. SHOW COMPLETE RELEASE DIRECTORY
+      # ------------------------------------------------------------
+      - name: Verify Flutter release bundle
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+
+          Write-Host ""
+          Write-Host "========================================"
+          Write-Host "FLUTTER RELEASE FILES"
+          Write-Host "========================================"
+
+          Get-ChildItem `
+            -Path $env:RELEASE_DIR `
+            -Recurse `
+            -File |
+            Select-Object FullName, Length |
+            Format-Table -AutoSize
+
+
+      # ------------------------------------------------------------
+      # 13. CREATE DIST DIRECTORY
+      # ------------------------------------------------------------
+      - name: Prepare distribution directory
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+
+          if (Test-Path "dist") {
+            Remove-Item "dist" -Recurse -Force
+          }
+
+          New-Item `
+            -ItemType Directory `
+            -Path "dist" `
+            -Force |
+            Out-Null
+
+
+      # ------------------------------------------------------------
+      # 14. CREATE PORTABLE ZIP
+      # ------------------------------------------------------------
+      - name: Create portable ZIP
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+
+          $zip = "dist\OutboundDatabase-Windows-Portable.zip"
+
+          Write-Host ""
+          Write-Host "Creating portable ZIP..."
+
+          Compress-Archive `
+            -Path "$env:RELEASE_DIR\*" `
+            -DestinationPath $zip `
+            -CompressionLevel Optimal `
+            -Force
+
+          if (-not (Test-Path $zip)) {
+            throw "Portable ZIP was not created."
+          }
+
+          $file = Get-Item $zip
+
+          Write-Host ""
+          Write-Host "Portable ZIP created:"
+          Write-Host $file.FullName
+          Write-Host "Size: $([math]::Round($file.Length / 1MB, 2)) MB"
+
+
+      # ------------------------------------------------------------
+      # 15. PREPARE NSIS PAYLOAD
+      # ------------------------------------------------------------
+      - name: Prepare installer payload
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+
+          $payload = "installer_payload"
+
+          if (Test-Path $payload) {
+            Remove-Item $payload -Recurse -Force
+          }
+
+          New-Item `
+            -ItemType Directory `
+            -Path $payload `
+            -Force |
+            Out-Null
+
+          Write-Host ""
+          Write-Host "Copying Flutter release files to installer payload..."
+
+          Copy-Item `
+            -Path "$env:RELEASE_DIR\*" `
+            -Destination $payload `
+            -Recurse `
+            -Force
+
+          $exe = "$payload\outbound_database.exe"
+
+          if (-not (Test-Path $exe)) {
+            throw "Installer payload does not contain outbound_database.exe."
+          }
+
+          Write-Host ""
+          Write-Host "Installer payload:"
+          Get-ChildItem `
+            -Path $payload `
+            -Recurse `
+            -File |
+            Select-Object FullName, Length |
+            Format-Table -AutoSize
+
+
+      # ------------------------------------------------------------
+      # 16. INSTALL NSIS
+      # ------------------------------------------------------------
+      - name: Install NSIS
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+
+          Write-Host "Installing NSIS..."
+
+          choco install nsis `
+            --yes `
+            --no-progress
+
+          if ($LASTEXITCODE -ne 0) {
+            throw "NSIS installation failed."
+          }
+
+          $makensis = "${env:ProgramFiles(x86)}\NSIS\makensis.exe"
+
+          if (-not (Test-Path $makensis)) {
+            $makensis = "${env:ProgramFiles}\NSIS\makensis.exe"
+          }
+
+          if (-not (Test-Path $makensis)) {
+            throw "makensis.exe could not be found."
+          }
+
+          Write-Host ""
+          Write-Host "NSIS found:"
+          Write-Host $makensis
+
+          "MAKENSIS=$makensis" >> $env:GITHUB_ENV
+
+
+      # ------------------------------------------------------------
+      # 17. BUILD INSTALLER
+      # ------------------------------------------------------------
       - name: Build NSIS installer
         shell: pwsh
         run: |
-          $nsis = "${env:ProgramFiles(x86)}\\NSIS\\makensis.exe"
-          if (-not (Test-Path $nsis)) { Write-Host "makensis not found at $nsis"; exit 1 }
-          & $nsis -V2 installer.nsi
-          if (-not (Test-Path .\\outbound_database_installer.exe)) { Write-Host "Installer not created"; exit 1 }
-          Write-Host "Created installer outbound_database_installer.exe"
+          $ErrorActionPreference = "Stop"
 
-      - name: Upload artifacts (always)
+          Write-Host ""
+          Write-Host "========================================"
+          Write-Host "BUILDING NSIS INSTALLER"
+          Write-Host "========================================"
+
+          & $env:MAKENSIS /V3 installer.nsi
+
+          $exitCode = $LASTEXITCODE
+
+          Write-Host ""
+          Write-Host "NSIS exit code: $exitCode"
+
+          if ($exitCode -ne 0) {
+            throw "NSIS installer build failed."
+          }
+
+          if (-not (Test-Path "OutboundDatabase-Setup.exe")) {
+            throw "OutboundDatabase-Setup.exe was not created."
+          }
+
+          $installer = Get-Item "OutboundDatabase-Setup.exe"
+
+          Write-Host ""
+          Write-Host "========================================"
+          Write-Host "INSTALLER CREATED SUCCESSFULLY"
+          Write-Host "========================================"
+          Write-Host ""
+          Write-Host $installer.FullName
+          Write-Host "Size: $([math]::Round($installer.Length / 1MB, 2)) MB"
+
+
+      # ------------------------------------------------------------
+      # 18. CREATE BUILD MANIFEST
+      # ------------------------------------------------------------
+      - name: Create build manifest
+        if: always()
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Continue"
+
+          $manifest = "Outbound Database Windows Build`r`n"
+          $manifest += "================================`r`n"
+          $manifest += "Repository: $env:GITHUB_REPOSITORY`r`n"
+          $manifest += "Commit: $env:GITHUB_SHA`r`n"
+          $manifest += "Ref: $env:GITHUB_REF`r`n"
+          $manifest += "Runner: $env:RUNNER_OS`r`n"
+          $manifest += "`r`n"
+
+          $manifest += "Flutter:`r`n"
+          $manifest += (flutter --version | Out-String)
+
+          $manifest += "`r`nRelease directory:`r`n"
+          $manifest += "$env:RELEASE_DIR`r`n"
+
+          if (Test-Path "build_windows_log.txt") {
+            $manifest += "`r`nBuild log: build_windows_log.txt`r`n"
+          }
+
+          if (Test-Path "OutboundDatabase-Setup.exe") {
+            $f = Get-Item "OutboundDatabase-Setup.exe"
+            $manifest += "`r`nInstaller:`r`n"
+            $manifest += "$($f.FullName)`r`n"
+            $manifest += "Size: $($f.Length) bytes`r`n"
+          }
+
+          if (Test-Path "dist\OutboundDatabase-Windows-Portable.zip") {
+            $f = Get-Item "dist\OutboundDatabase-Windows-Portable.zip"
+            $manifest += "`r`nPortable ZIP:`r`n"
+            $manifest += "$($f.FullName)`r`n"
+            $manifest += "Size: $($f.Length) bytes`r`n"
+          }
+
+          Set-Content `
+            -Path "build_manifest.txt" `
+            -Value $manifest `
+            -Encoding UTF8
+
+
+      # ------------------------------------------------------------
+      # 19. UPLOAD ARTIFACTS
+      # ------------------------------------------------------------
+      - name: Upload Windows build artifacts
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: outbound_database-windows
+          name: outbound-database-windows
+          if-no-files-found: warn
           path: |
-            outbound_database_windows.zip
-            outbound_database_installer.exe
+            dist/OutboundDatabase-Windows-Portable.zip
+            OutboundDatabase-Setup.exe
             build_windows_log.txt
+            build_manifest.txt
+
+
+      # ------------------------------------------------------------
+      # 20. CREATE GITHUB RELEASE FOR v* TAGS
+      # ------------------------------------------------------------
+      - name: Create GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: |
+            dist/OutboundDatabase-Windows-Portable.zip
+            OutboundDatabase-Setup.exe
