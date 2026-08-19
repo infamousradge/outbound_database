@@ -66,7 +66,7 @@ The database is not stored inside the installed program directory.
 - Windows runner generation happens **before** dependency/build steps.
 - The build command is allowed to fail; the workflow now stops immediately on a non-zero exit code.
 - Both current and older Flutter Windows release output layouts are handled.
-- `flutter analyze` is a real required build gate.
+- Analyzer diagnostics are uploaded as `analyze_log.txt`; info/lint diagnostics do not block the release build. Actual Flutter compilation errors do block the build.
 - The workflow uploads the build log even if a later packaging step fails.
 - NSIS produces a real installer named `OutboundDatabase-Setup.exe`.
 - Dependency versions are modernized while keeping `sqflite_common_ffi` on the SQLite v2 line for predictable Windows builds.
