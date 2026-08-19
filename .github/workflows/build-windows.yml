@@ -230,32 +230,102 @@ jobs:
           Write-Host 'Portable ZIP:'
           Get-Item $zip | Format-List FullName, Length, LastWriteTime
 
-      - name: Install NSIS
+      - name: Install and locate NSIS
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
 
+          Write-Host 'Installing NSIS with Chocolatey...'
           choco install nsis --yes --no-progress
-          if ($LASTEXITCODE -ne 0) {
-            throw "NSIS installation failed with exit code $LASTEXITCODE"
+          $installCode = $LASTEXITCODE
+
+          if ($installCode -ne 0) {
+            throw "NSIS installation failed with exit code $installCode"
           }
 
-          $makensis = @(
-            "$env:ProgramFiles(x86)\NSIS\makensis.exe",
-            "$env:ProgramFiles\NSIS\makensis.exe"
-          ) | Where-Object { Test-Path $_ } | Select-Object -First 1
+          Write-Host ''
+          Write-Host 'Locating makensis.exe...'
+
+          # IMPORTANT: ProgramFiles(x86) contains parentheses, so the
+          # correct PowerShell syntax is ${env:ProgramFiles(x86)}.
+          $candidates = @(
+            "${env:ProgramFiles(x86)}\NSIS\makensis.exe",
+            "${env:ProgramFiles}\NSIS\makensis.exe",
+            'C:\Program Files (x86)\NSIS\makensis.exe',
+            'C:\Program Files\NSIS\makensis.exe'
+          )
+
+          $makensis = $null
+
+          foreach ($candidate in $candidates) {
+            if ($candidate -and (Test-Path -LiteralPath $candidate)) {
+              $makensis = (Resolve-Path -LiteralPath $candidate).Path
+              break
+            }
+          }
+
+          # Try PATH as a second method.
+          if (-not $makensis) {
+            $command = Get-Command 'makensis.exe' -ErrorAction SilentlyContinue
+            if ($command) {
+              $makensis = $command.Source
+            }
+          }
+
+          # Final fallback: search Chocolatey's installed package folders.
+          if (-not $makensis) {
+            $chocoRoot = $env:ChocolateyInstall
+            if (-not $chocoRoot) {
+              $chocoRoot = 'C:\ProgramData\chocolatey'
+            }
+
+            foreach ($root in @(
+              (Join-Path $chocoRoot 'lib\nsis'),
+              (Join-Path $chocoRoot 'lib\nsis.install')
+            )) {
+              if (Test-Path -LiteralPath $root) {
+                $found = Get-ChildItem -LiteralPath $root -Filter 'makensis.exe' -File -Recurse -ErrorAction SilentlyContinue |
+                  Select-Object -First 1
+                if ($found) {
+                  $makensis = $found.FullName
+                  break
+                }
+              }
+            }
+          }
 
           if (-not $makensis) {
-            throw 'NSIS makensis.exe was not found.'
+            Write-Host ''
+            Write-Host 'NSIS was installed but makensis.exe could not be located.'
+            Write-Host 'Checking standard NSIS directory:'
+            if (Test-Path 'C:\Program Files (x86)\NSIS') {
+              Get-ChildItem 'C:\Program Files (x86)\NSIS' -Recurse -Force |
+                Select-Object FullName |
+                Format-Table -AutoSize
+            }
+            throw 'NSIS makensis.exe was not found after installation.'
+          }
+
+          $makensis = (Resolve-Path -LiteralPath $makensis).Path
+
+          Write-Host "Found makensis.exe: $makensis"
+
+          & $makensis /VERSION
+          $versionCode = $LASTEXITCODE
+          if ($versionCode -ne 0) {
+            throw "makensis.exe was found but could not run. Exit code $versionCode"
           }
 
           "MAKENSIS=$makensis" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
-          Write-Host "NSIS: $makensis"
 
       - name: Build NSIS installer
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
+
+          if (-not (Test-Path 'installer_payload\outbound_database.exe')) {
+            throw 'installer_payload\outbound_database.exe is missing before NSIS build.'
+          }
 
           & $env:MAKENSIS /V3 'installer.nsi'
           $code = $LASTEXITCODE
@@ -266,6 +336,11 @@ jobs:
 
           if (-not (Test-Path 'OutboundDatabase-Setup.exe')) {
             throw 'OutboundDatabase-Setup.exe was not created.'
+          }
+
+          $installer = Get-Item 'OutboundDatabase-Setup.exe'
+          if ($installer.Length -lt 100KB) {
+            throw "Installer is unexpectedly small ($($installer.Length) bytes)."
           }
 
           Write-Host 'Installer:'
