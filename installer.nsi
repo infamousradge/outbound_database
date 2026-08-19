@@ -1,10 +1,17 @@
 !include "MUI2.nsh"
 
 Name "Outbound Database"
-OutFile "outbound_database_installer.exe"
+OutFile "OutboundDatabase-Setup.exe"
 InstallDir "$PROGRAMFILES64\Outbound Database"
-ShowInstDetails show
-ShowUninstDetails show
+RequestExecutionLevel admin
+Unicode True
+SetCompressor /SOLID lzma
+
+VIProductVersion "0.1.0.1"
+VIAddVersionKey "ProductName" "Outbound Database"
+VIAddVersionKey "FileDescription" "Outbound Database Windows Desktop Application"
+VIAddVersionKey "CompanyName" "Outbound Database"
+VIAddVersionKey "FileVersion" "0.1.0.1"
 
 !insertmacro MUI_PAGE_WELCOME
 !insertmacro MUI_PAGE_DIRECTORY
@@ -16,22 +23,27 @@ ShowUninstDetails show
 
 Section "Install"
   SetOutPath "$INSTDIR"
-  ; Copy all files from Flutter release folder
-  File /r "build\\windows\\runner\\Release\\*"
 
-  ; Write uninstaller
-  WriteUninstaller "$INSTDIR\\uninstall.exe"
+  ; GitHub Actions copies the actual Flutter release bundle here before
+  ; invoking NSIS. This avoids depending on Flutter's internal output path.
+  File /r "installer_payload\*"
 
-  ; Create shortcuts on desktop and start menu
-  CreateDirectory "$SMPROGRAMS\\Outbound Database"
-  CreateShortCut "$SMPROGRAMS\\Outbound Database\\Outbound Database.lnk" "$INSTDIR\\outbound_database.exe"
-  CreateShortCut "$DESKTOP\\Outbound Database.lnk" "$INSTDIR\\outbound_database.exe"
+  WriteUninstaller "$INSTDIR\uninstall.exe"
+
+  CreateDirectory "$SMPROGRAMS\Outbound Database"
+  CreateShortCut "$SMPROGRAMS\Outbound Database\Outbound Database.lnk" "$INSTDIR\outbound_database.exe"
+  CreateShortCut "$DESKTOP\Outbound Database.lnk" "$INSTDIR\outbound_database.exe"
+
+  WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\Outbound Database" "DisplayName" "Outbound Database"
+  WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\Outbound Database" "UninstallString" "$INSTDIR\uninstall.exe"
+  WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\Outbound Database" "DisplayVersion" "0.1.0"
+  WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\Outbound Database" "Publisher" "Outbound Database"
 SectionEnd
 
 Section "Uninstall"
-  Delete "$SMPROGRAMS\\Outbound Database\\Outbound Database.lnk"
-  Delete "$DESKTOP\\Outbound Database.lnk"
-  RMDir "$SMPROGRAMS\\Outbound Database"
+  Delete "$SMPROGRAMS\Outbound Database\Outbound Database.lnk"
+  RMDir "$SMPROGRAMS\Outbound Database"
+  Delete "$DESKTOP\Outbound Database.lnk"
+  DeleteRegKey HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\Outbound Database"
   RMDir /r "$INSTDIR"
-  DeleteRegKey HKLM "Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Outbound Database"
 SectionEnd

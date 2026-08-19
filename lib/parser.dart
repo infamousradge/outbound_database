@@ -118,7 +118,7 @@ List<ParsedRecord> parseDocxBytes(Uint8List bytes) {
     final delivMatch = RegExp(r'Delivery\s*Address\s*[:\-]?\s*(.*?)(?=GST|Contact|Mob|Ph|Dear|$)', caseSensitive: false).firstMatch(block);
     final delivAddr = delivMatch?.group(1)?.trim();
 
-    final itemSplit = block.split(RegExp(r'ITEM\\s*\\d*\\s*:', caseSensitive: false));
+    final itemSplit = block.split(RegExp(r'\bITEM\s*\d*\s*:', caseSensitive: false));
     final itemsRaw = itemSplit.length > 1 ? itemSplit.sublist(1) : [block];
 
     List<ParsedItem> extractedItems = [];
